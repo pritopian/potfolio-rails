@@ -1,58 +1,24 @@
-# Voice Canvas Demo App (Runnable)
+# Voice Canvas Orchestration (Figma)
 
-This repository now includes a **runnable local app** for your requested flow:
+This repository now contains a Rails-oriented scaffold for a voice-to-canvas workflow:
 
-1. speak/type request,
-2. synthesize into exactly two Tinder-style options,
-3. choose one,
-4. generate structured action JSON,
-5. execute operations.
+1. Capture voice intent from Realtime API.
+2. Convert request into exactly 2 Tinder-style option cards.
+3. Turn selected card into a strict JSON action plan. 
+4. Execute plan on a Figma bridge.
 
-## Run the app
+## Key files
+- `app/services/voice_canvas/intent_pipeline.rb`
+- `app/services/voice_canvas/option_synthesizer.rb`
+- `app/services/voice_canvas/action_plan_executor.rb`
+- `app/services/voice_canvas/schemas.rb`
+- `app/controllers/api/voice_canvas_controller.rb`
+- `docs/voice_control_figma_canvas.md`
 
-```bash
-ruby app_runner.rb
-```
-
-Open: `http://localhost:4567`
-
-## What works right now
-
-- Voice input (via browser SpeechRecognition when supported) or typed transcript
-- `POST /api/voice_canvas/transcript`: stores transcript for a session
-- `POST /api/voice_canvas/options`: returns exactly 2 option cards
-- `POST /api/voice_canvas/execute`: creates action plan JSON and executes it
-- Selected slide/node IDs influence behavior:
-  - no selected IDs => create slide operations
-  - selected IDs present => emit targeted edit operations
-
-## Files
-
-- `app_runner.rb` – tiny TCP HTTP server + JSON API routing
-- `public/index.html` – demo UI with voice button + two-card choice UX
-- `app/services/voice_canvas/*` – intent/options/plan executor services
-- `lib/voice_canvas/runtime/*` – in-memory runtime adapters for realtime, LLM, and Figma bridge
-- `script/voice_canvas_smoke_test.rb` – command-line smoke test
-
-## Quick CLI test
-
-```bash
-ruby script/voice_canvas_smoke_test.rb
-```
-
-## Example API calls (without UI)
-
-```bash
-curl -s -X POST http://localhost:4567/api/voice_canvas/transcript \
-  -H 'Content-Type: application/json' \
-  -d '{"session_id":"demo1","transcript":"Create a solar system deck for 10 year olds"}'
-
-curl -s -X POST http://localhost:4567/api/voice_canvas/options \
-  -H 'Content-Type: application/json' \
-  -d '{"session_id":"demo1","selected_node_ids":[]}'
-```
+## API shape
+- `POST /api/voice_canvas/options` -> returns 2 option cards.
+- `POST /api/voice_canvas/execute` -> plans + executes chosen option.
 
 ## Notes
-
-- This runnable app uses a rule-based local LLM adapter so you can test now without external API keys.
-- To go production, replace runtime adapters with OpenAI Realtime + Responses clients and your real Figma bridge.
+- `llm_client`, `realtime_client`, and `figma_bridge` are dependency-injected via `Rails.configuration.x.voice_canvas.*`.
+- JSON schema enforcement is embedded in the service layer for both option synthesis and execution plan generation.
