@@ -4,7 +4,7 @@ This repository now contains a Rails-oriented scaffold for a voice-to-canvas wor
 
 1. Capture voice intent from Realtime API.
 2. Convert request into exactly 2 Tinder-style option cards.
-3. Turn selected card into a strict JSON action plan.
+3. Turn selected card into a strict JSON action plan. 
 4. Execute plan on a Figma bridge.
 
 ## Key files

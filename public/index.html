@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Canvas Demo</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; background: #0f172a; color: #e2e8f0; }
+      button { padding: 0.6rem 1rem; margin-right: 0.5rem; border-radius: 8px; border: none; cursor: pointer; }
+      .primary { background: #22c55e; color: #022c22; font-weight: bold; }
+      .secondary { background: #38bdf8; color: #082f49; }
+      textarea, input { width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid #334155; background: #111827; color: #e2e8f0; margin-top: 0.4rem; }
+      .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+      .card { border: 1px solid #334155; border-radius: 12px; padding: 1rem; background: #111827; }
+      .muted { color: #94a3b8; font-size: 0.9rem; }
+      pre { background: #020617; padding: 1rem; border-radius: 8px; overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <h1>Voice Canvas Demo (Runnable)</h1>
+    <p>Speak or type your request, generate two option cards, choose one, and execute.</p>
+
+    <label>Voice transcript</label>
+    <textarea id="transcript" rows="3" placeholder="I want to create a presentation summarizing facts about the solar system for a 10 year old"></textarea>
+    <div style="margin-top: 0.75rem;">
+      <button id="recordBtn" class="secondary">🎙️ Record Voice</button>
+      <button id="saveBtn" class="primary">1) Save Transcript</button>
+      <span id="sessionText" class="muted"></span>
+    </div>
+
+    <label style="margin-top: 1rem; display: block;">Selected slide/node IDs (comma-separated, optional)</label>
+    <input id="selectedIds" placeholder="123:456,789:101" />
+
+    <div style="margin-top: 1rem;">
+      <button id="optionsBtn" class="primary">2) Generate 2 Options</button>
+    </div>
+
+    <div id="cards" class="cards"></div>
+
+    <h3>Execution Output</h3>
+    <pre id="output">(results appear here)</pre>
+
+    <script>
+      let sessionId = null;
+      let currentIntent = null;
+      let currentCards = [];
+
+      async function post(path, payload) {
+        const res = await fetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        return res.json();
+      }
+
+      function parseSelectedIds() {
+        const raw = document.getElementById('selectedIds').value.trim();
+        if (!raw) return [];
+        return raw.split(',').map(x => x.trim()).filter(Boolean);
+      }
+
+      document.getElementById('saveBtn').onclick = async () => {
+        const transcript = document.getElementById('transcript').value.trim();
+        if (!transcript) return alert('Please speak/type a transcript first.');
+
+        const data = await post('/api/voice_canvas/transcript', { session_id: sessionId, transcript });
+        sessionId = data.session_id;
+        document.getElementById('sessionText').innerText = `Session: ${sessionId}`;
+        document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+      };
+
+      document.getElementById('optionsBtn').onclick = async () => {
+        if (!sessionId) return alert('Save transcript first.');
+        const data = await post('/api/voice_canvas/options', {
+          session_id: sessionId,
+          selected_node_ids: parseSelectedIds()
+        });
+
+        currentIntent = data.intent;
+        currentCards = data.cards.options || [];
+        renderCards();
+        document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+      };
+
+      function renderCards() {
+        const cardsEl = document.getElementById('cards');
+        cardsEl.innerHTML = '';
+
+        currentCards.forEach((card, idx) => {
+          const el = document.createElement('div');
+          el.className = 'card';
+          el.innerHTML = `
+            <h3>${card.title}</h3>
+            <p class="muted">${card.subtitle}</p>
+            <p><b>Design:</b> ${card.designTone}</p>
+            <p><b>Tone:</b> ${card.contentTone}</p>
+            <p><b>Tradeoff:</b> ${card.tradeoff}</p>
+            <button class="primary" data-idx="${idx}">Choose</button>
+          `;
+          cardsEl.appendChild(el);
+        });
+
+        cardsEl.querySelectorAll('button').forEach(btn => {
+          btn.onclick = async () => {
+            const chosen = currentCards[Number(btn.dataset.idx)];
+            const payload = {
+              intent: currentIntent,
+              chosen_option: chosen,
+              target: {
+                fileId: 'fig_file_local_demo',
+                pageId: '0:1',
+                selectedNodeIds: parseSelectedIds()
+              },
+              dry_run: false
+            };
+            const data = await post('/api/voice_canvas/execute', payload);
+            document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+          };
+        });
+      }
+
+      document.getElementById('recordBtn').onclick = () => {
+        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!Recognition) {
+          alert('SpeechRecognition is not available in this browser. Type transcript manually.');
+          return;
+        }
+
+        const rec = new Recognition();
+        rec.lang = 'en-US';
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+
+        rec.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          document.getElementById('transcript').value = transcript;
+        };
+
+        rec.start();
+      };
+    </script>
+  </body>
+</html>
